@@ -76,17 +76,14 @@ rm -f "$TMP_SERVICE"
 sudo systemctl daemon-reload
 sudo systemctl enable "$SERVICE"
 
-# --- 4. XDG autostart (belt-and-suspenders for LXDE/Openbox desktops) -------
-echo "[4/5] Installing .desktop autostart at $AUTOSTART_DIR..."
-mkdir -p "$AUTOSTART_DIR"
-cat > "$AUTOSTART_DIR/besttrack.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=BestTrack Photo Finish
-Comment=Race track photo finish timer display
-Exec=/usr/bin/python3 $DEST_SCRIPT
-X-GNOME-Autostart-enabled=true
-EOF
+# --- 4. Remove stale XDG autostart entries ----------------------------------
+# Earlier installer versions added a .desktop autostart entry as a backup
+# launcher.  That caused TWO copies of the kiosk to boot (one from systemd,
+# one from the desktop session).  systemd is the source of truth -- nuke
+# any stray .desktop file from previous installs.
+echo "[4/5] Removing any stale XDG autostart entries..."
+rm -f "$AUTOSTART_DIR/besttrack.desktop"
+rm -f "$TARGET_HOME/.config/autostart/besttrack.desktop"
 
 # --- 5. Summary -------------------------------------------------------------
 echo "[5/5] Done."
