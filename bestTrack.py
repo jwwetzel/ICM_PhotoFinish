@@ -46,7 +46,7 @@ except (ImportError, RuntimeError):
 BUTTON_PIN   = 40              # Physical BOARD pin, active LOW (has pull-up)
 RELAY_PINS   = [7, 11, 13, 15] # Solenoid relay pins -- LOW = energized
 RELAY_ON_SEC = 1.5             # How long to hold the solenoid (seconds)
-RACE_WAIT    = 4.5             # Seconds after gate opens before reading results
+RACE_WAIT    = 4.0             # Seconds after gate opens before reading results
 BUTTON_POLL_MS = 20            # How often we check the button (ms)
 
 # Stable USB-port paths so Timer 1 and Timer 2 don't swap on reboot.
@@ -280,10 +280,15 @@ class RaceApp:
         # Hidden admin exit: Ctrl+Shift+Q (kids cannot find this by accident).
         # Escape and 'q' alone are intentionally NOT bound, so curious fingers
         # on a keyboard cannot kill the kiosk.
-        root.bind("<Control-Shift-Q>", self._quit)
-        root.bind("<Control-Shift-q>", self._quit)
+        #
+        # Use bind_all() instead of bind() so the shortcut works even when
+        # focus has drifted off the toplevel window (which happens routinely
+        # with fullscreen + topmost on LXDE/Openbox).
+        root.bind_all("<Control-Shift-Q>",        self._quit)
+        root.bind_all("<Control-Shift-q>",        self._quit)
+        root.bind_all("<Control-Shift-KeyPress-Q>", self._quit)
         # Dev helper: F5 simulates a race without GPIO.
-        root.bind("<F5>", lambda _: self._simulate_race())
+        root.bind_all("<F5>", lambda _: self._simulate_race())
         # Swallow Alt-F4 so a connected keyboard cannot close the window.
         root.protocol("WM_DELETE_WINDOW", lambda: None)
 
