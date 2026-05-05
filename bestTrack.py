@@ -45,8 +45,9 @@ except (ImportError, RuntimeError):
 
 BUTTON_PIN   = 40              # Physical BOARD pin, active LOW (has pull-up)
 RELAY_PINS   = [7, 11, 13, 15] # Solenoid relay pins -- LOW = energized
-RELAY_ON_SEC = 0.5             # How long to hold the solenoid (seconds)
+RELAY_ON_SEC = 1.5             # How long to hold the solenoid (seconds)
 RACE_WAIT    = 4.5             # Seconds after gate opens before reading results
+BUTTON_POLL_MS = 20            # How often we check the button (ms)
 
 # Stable USB-port paths so Timer 1 and Timer 2 don't swap on reboot.
 # These are tied to the physical USB jack on the Pi, not to the adapter
@@ -133,7 +134,7 @@ class BestTrackTimer:
         try:
             self._ser.reset_input_buffer()
             self._ser.write(b"rf\r")
-            time.sleep(0.1)
+            time.sleep(0.03)
         except Exception:
             pass
 
@@ -305,22 +306,22 @@ class RaceApp:
 
         t1_color = '#44ff44' if self.timer1.connected else '#ff4444'
         tk.Label(title_frame, text="*",
-                 font=("Helvetica", s(18), "bold"),
+                 font=("Helvetica", s(26), "bold"),
                  bg=HEADER_BG, fg=t1_color).pack(side=tk.LEFT, padx=(s(16), 0))
         tk.Label(title_frame, text="T1",
-                 font=("Helvetica", s(12)), bg=HEADER_BG,
+                 font=("Helvetica", s(18)), bg=HEADER_BG,
                  fg=T1_LABEL_FG).pack(side=tk.LEFT, padx=(2, s(16)))
 
         tk.Label(title_frame, text="PHOTO  FINISH",
-                 font=("Helvetica", s(34), "bold"),
+                 font=("Helvetica", s(48), "bold"),
                  bg=HEADER_BG, fg=HEADER_FG).pack(side=tk.LEFT, expand=True)
 
         t2_color = '#44ff44' if self.timer2.connected else '#ff4444'
         tk.Label(title_frame, text="T2",
-                 font=("Helvetica", s(12)), bg=HEADER_BG,
+                 font=("Helvetica", s(18)), bg=HEADER_BG,
                  fg=T2_LABEL_FG).pack(side=tk.RIGHT, padx=(2, s(16)))
         tk.Label(title_frame, text="*",
-                 font=("Helvetica", s(18), "bold"),
+                 font=("Helvetica", s(26), "bold"),
                  bg=HEADER_BG, fg=t2_color).pack(side=tk.RIGHT, padx=(0, 2))
 
         # --- status bar ------------------------------------------------------
@@ -330,7 +331,7 @@ class RaceApp:
         status_frame = tk.Frame(self.root, bg=STATUS_BG)
         status_frame.pack(fill=tk.X, ipady=s(4))
         tk.Label(status_frame, textvariable=self._status_var,
-                 font=("Helvetica", s(18)),
+                 font=("Helvetica", s(26)),
                  bg=STATUS_BG, fg=STATUS_FG).pack(expand=True)
 
         # --- results grid ----------------------------------------------------
@@ -354,28 +355,28 @@ class RaceApp:
             f = tk.Frame(grid, bg=LANE_BG)
             f.grid(row=0, column=lane, sticky="nsew", **pad)
             tk.Label(f, text="Lane " + str(lane),
-                     font=("Helvetica", s(22), "bold"),
+                     font=("Helvetica", s(30), "bold"),
                      bg=LANE_BG, fg=LANE_FG).pack(expand=True, fill=tk.BOTH)
 
         # Timer 1 label (spans time + place rows)
         f = tk.Frame(grid, bg=CELL_BG)
         f.grid(row=1, column=0, rowspan=2, sticky="nsew", **pad)
         tk.Label(f, text="Timer\n1",
-                 font=("Helvetica", s(22), "bold"),
+                 font=("Helvetica", s(30), "bold"),
                  bg=CELL_BG, fg=T1_LABEL_FG).pack(expand=True)
 
         # Timer 2 label
         f = tk.Frame(grid, bg=CELL_BG)
         f.grid(row=3, column=0, rowspan=2, sticky="nsew", **pad)
         tk.Label(f, text="Timer\n2",
-                 font=("Helvetica", s(22), "bold"),
+                 font=("Helvetica", s(30), "bold"),
                  bg=CELL_BG, fg=T2_LABEL_FG).pack(expand=True)
 
         # data cell stores: {lane: {'time': Label, 'place': Label}}
         self._cells = {1: {}, 2: {}}
 
-        time_font  = ("Helvetica", s(30), "bold")
-        place_font = ("Helvetica", s(26), "bold")
+        time_font  = ("Helvetica", s(44), "bold")
+        place_font = ("Helvetica", s(38), "bold")
 
         def make_data_rows(timer_idx, time_row, place_row):
             for lane in range(1, NUM_LANES + 1):
@@ -433,9 +434,9 @@ class RaceApp:
         # (comment out if your units don't support 'rf')
         self.timer1.reset()
         self.timer2.reset()
-        time.sleep(0.05)
 
-        # Fire solenoid to release cars
+        # Fire solenoid to release cars (cars are released the instant
+        # the relay pins go LOW; the 1.5 s hold happens after).
         self.gate.fire()
 
         # Countdown in status bar while cars travel the track
@@ -475,7 +476,7 @@ class RaceApp:
     def _poll(self):
         if not self._racing and self.gate.button_pressed():
             threading.Thread(target=self._race_thread, daemon=True).start()
-        self.root.after(50, self._poll)
+        self.root.after(BUTTON_POLL_MS, self._poll)
 
     # --- quit ----------------------------------------------------------------
 
