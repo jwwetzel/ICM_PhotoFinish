@@ -173,16 +173,19 @@ class BestTrackTimer:
             time_str     = m.group(2)[:7]
             place_letter = m.group(3).lower() if m.group(3) else ' '
 
-            # Detect timer's "no car detected" sentinel value (9.9999).
             try:
-                if float(time_str) >= NO_RESULT_THRESHOLD:
-                    results[lane] = {'time': '---', 'place': ' '}
-                    continue
+                time_val = float(time_str)
             except ValueError:
-                pass
+                results[lane] = {'time': '---', 'place': ' '}
+                continue
+
+            # Timer's "no car detected" sentinel (9.9999) -> blank cell.
+            if time_val >= NO_RESULT_THRESHOLD:
+                results[lane] = {'time': '---', 'place': ' '}
+                continue
 
             results[lane] = {
-                'time':  time_str,
+                'time':  "%.2f" % time_val,
                 'place': PLACE_LABEL.get(place_letter, ' '),
             }
         for lane in range(1, NUM_LANES + 1):
