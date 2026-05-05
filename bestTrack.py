@@ -48,11 +48,27 @@ RELAY_PINS   = [7, 11, 13, 15] # Solenoid relay pins -- LOW = energized
 RELAY_ON_SEC = 0.5             # How long to hold the solenoid (seconds)
 RACE_WAIT    = 4.5             # Seconds after gate opens before reading results
 
-SERIAL_PORT_1 = "/dev/ttyUSB0"
-SERIAL_PORT_2 = "/dev/ttyUSB1"
+# Stable USB-port paths so Timer 1 and Timer 2 don't swap on reboot.
+# These are tied to the physical USB jack on the Pi, not to the adapter
+# itself.  The Prolific PL2303 adapters in use don't carry unique serial
+# numbers, so by-id can't disambiguate them -- we use by-path instead.
+#
+# Mapping (label these jacks on the Pi):
+#   T1 -> physical port 1.1.3
+#   T2 -> physical port 1.1.2
+#
+# To verify after a re-cabling, run on the Pi:
+#   ls -l /dev/serial/by-path/
+SERIAL_PORT_1 = "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.1.3:1.0-port0"
+SERIAL_PORT_2 = "/dev/serial/by-path/platform-3f980000.usb-usb-0:1.1.2:1.0-port0"
 BAUD_RATE     = 9600
 
 NUM_LANES = 6
+
+# BestTrack returns 9.9999 when a lane never tripped a sensor (timer
+# timed out).  Any time at or above this threshold is treated as "no result"
+# and displayed as '---' instead of a real-looking number.
+NO_RESULT_THRESHOLD = 9.99
 
 # Mapping from BestTrack place suffix to ordinal string
 PLACE_LABEL = {
@@ -143,6 +159,10 @@ class BestTrackTimer:
         """
         Parse BestTrack 'ra' response.
         Handles both '1=0.6149f' and '1 = 0.6149f' spacing variants.
+
+        BestTrack returns 9.9999 for any lane that didn't trip a sensor
+        (the timer's max/timeout value).  We map those to '---' so the
+        display clearly reads "no result" instead of a real-looking time.
         """
         results = {}
         # Matches:  lane_digit [spaces] = [spaces] digits.digits [optional_letter]
@@ -151,6 +171,15 @@ class BestTrackTimer:
             lane         = int(m.group(1))
             time_str     = m.group(2)[:7]
             place_letter = m.group(3).lower() if m.group(3) else ' '
+
+            # Detect timer's "no car detected" sentinel value (9.9999).
+            try:
+                if float(time_str) >= NO_RESULT_THRESHOLD:
+                    results[lane] = {'time': '---', 'place': ' '}
+                    continue
+            except ValueError:
+                pass
+
             results[lane] = {
                 'time':  time_str,
                 'place': PLACE_LABEL.get(place_letter, ' '),
@@ -464,6 +493,14 @@ def main():
     gate   = GateController()
     timer1 = BestTrackTimer(SERIAL_PORT_1)
     timer2 = BestTrackTimer(SERIAL_PORT_2)
+
+    # Boot-time reset: clear any stale results the timers were holding
+    # at power-on.  Without this, the very first race after boot can
+    # display old times from before the kiosk was last shut down.
+    print("Sending initial reset to both timers...")
+    timer1.reset()
+    timer2.reset()
+    time.sleep(0.2)
 
     root = tk.Tk()
     root.title("Photo Finish")
