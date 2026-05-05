@@ -13,6 +13,22 @@ fi
 # Always operate from the directory this script lives in.
 cd "$(dirname "$0")"
 
+# --- Bail out if read-only overlay is active -------------------------------
+# Updates would land in RAM and vanish on reboot.  Disable overlay first
+# with:  bash readonly-off.sh    (then run update.sh after reboot)
+if command -v raspi-config >/dev/null 2>&1; then
+    if sudo raspi-config nonint get_overlay_now 2>/dev/null | grep -q '^0$'; then
+        echo "ERROR: read-only overlay filesystem is currently ACTIVE."
+        echo "       Any updates would be lost on next reboot."
+        echo ""
+        echo "       To update:"
+        echo "         1.  bash readonly-off.sh        (disables overlay + reboot)"
+        echo "         2.  bash update.sh              (this script, after reboot)"
+        echo "         3.  bash readonly-on.sh         (re-enables overlay + reboot)"
+        exit 1
+    fi
+fi
+
 echo "==> Checking GitHub for updates..."
 git fetch --quiet origin
 
